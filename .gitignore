@@ -1,0 +1,52 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model artifacts (large files)
+models/sentiment_model/*
+!models/sentiment_model/.gitkeep
+models/category_model/*
+!models/category_model/.gitkeep
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+kt_logs/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Lint/format caches
+.ruff_cache/
+
+# Docker
+*.pid
+
+# Environment
+.env

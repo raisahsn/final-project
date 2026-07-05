@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: tokopedia-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONPATH=src uvicorn api.main:app --host 0.0.0.0 --port 8000
+    envVars:
+      - key: PYTHONPATH
+        value: src
+      - key: DATABASE_URL
+        value: sqlite:///./predictions.db
