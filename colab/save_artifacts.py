@@ -23,6 +23,11 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+try:
+    import tf_keras as keras_backend
+except ImportError:
+    import tensorflow.keras as keras_backend
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -35,7 +40,11 @@ for d in (SENT_DIR, CAT_DIR):
 
 # Try to pull variables from the notebook/global namespace
 try:
-    _sentiment_model = globals().get("sentiment_model") or globals().get("tuned_model") or globals().get("bilstm_s")
+    _sentiment_model = (
+        globals().get("sentiment_model")
+        or globals().get("tuned_model")
+        or globals().get("bilstm_s")
+    )
     _category_model = globals().get("category_model") or globals().get("bilstm_c")
     _tokenizer = globals()["tokenizer"]
     _le_sent = globals()["le_sent"]
@@ -55,14 +64,16 @@ def _tokenizer_to_json(tokenizer):
     return tokenizer.to_json()
 
 
-def _save_model_and_assets(model, out_dir, label_encoder, model_type, classes, metrics=None):
+def _save_model_and_assets(
+    model, out_dir, label_encoder, model_type, classes, metrics=None
+):
     """Save Keras model, tokenizer copy, label encoder, and config."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Model
     model_path = out_dir / "model.keras"
-    model.save(str(model_path))
+    keras_backend.models.save_model(model, str(model_path))
     print(f"Saved model: {model_path}")
 
     # Tokenizer (shared between tasks in the notebook)

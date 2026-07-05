@@ -1,17 +1,21 @@
 """FastAPI application serving Tokopedia review predictions."""
 
 import json
-from pathlib import Path
-from typing import List
-
+import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Dict, List
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from tokopedia_ml import config
-from tokopedia_ml.inference import get_predictor
+from tokopedia_ml.inference import (
+    ModelLoadError,
+    get_predictor,
+    get_predictor_status,
+)
 
 from .database import (
     Prediction,
@@ -32,11 +36,22 @@ from .schemas import (
     PredictionRecord,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database tables on startup."""
+    """Initialize database tables and attempt to load models on startup."""
     init_db()
+    ready, errors = get_predictor_status()
+    if ready:
+        logger.info("All models loaded successfully at startup.")
+    else:
+        logger.warning("Models not fully loaded at startup. Errors: %s", errors)
     yield
 
 
@@ -56,49 +71,99 @@ app.add_middleware(
 )
 
 
-def _load_model_info(task: str) -> ModelInfo:
+def _load_model_info(task: str, errors: Dict[str, str]) -> ModelInfo:
     """Load model metadata from config.json if available."""
     model_dir = Path(config.DEFAULT_MODELS[task]["dir"])
     cfg_path = model_dir / "config.json"
     loaded = (model_dir / "model.keras").exists() and cfg_path.exists()
+    error_msg = errors.get(task, "")
+
     if loaded and cfg_path.exists():
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        return ModelInfo(
-            task=task,
-            model_type=cfg.get("model_type", "unknown"),
-            classes=cfg.get("classes", []),
-            max_len=cfg.get("max_len", config.MAX_LEN),
-            loaded=True,
-        )
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            return ModelInfo(
+                task=task,
+                model_type=cfg.get("model_type", "unknown"),
+                classes=cfg.get("classes", []),
+                max_len=cfg.get("max_len", config.MAX_LEN),
+                loaded=not error_msg,
+                error=error_msg,
+            )
+        except Exception as exc:
+            logger.warning("Could not read config.json for %s: %s", task, exc)
+
     return ModelInfo(
         task=task,
         model_type="unknown",
         classes=config.DEFAULT_MODELS[task].get("classes", []),
         max_len=config.MAX_LEN,
         loaded=False,
+        error=error_msg or f"Model artifacts not found at {model_dir}",
     )
 
 
 @app.get("/health", response_model=HealthResponse)
 def health_check() -> HealthResponse:
-    """Return API health status and model availability."""
+    """Return API health status and detailed model availability/errors."""
+    ready, errors = get_predictor_status()
     return HealthResponse(
         status="ok",
+        ready=ready,
         models=[
-            _load_model_info(config.TASK_SENTIMENT),
-            _load_model_info(config.TASK_CATEGORY),
+            _load_model_info(config.TASK_SENTIMENT, errors),
+            _load_model_info(config.TASK_CATEGORY, errors),
         ],
+        errors=errors,
     )
 
 
 @app.get("/models", response_model=List[ModelInfo])
 def list_models() -> List[ModelInfo]:
-    """List loaded model metadata."""
+    """List loaded model metadata with error details."""
+    _, errors = get_predictor_status()
     return [
-        _load_model_info(config.TASK_SENTIMENT),
-        _load_model_info(config.TASK_CATEGORY),
+        _load_model_info(config.TASK_SENTIMENT, errors),
+        _load_model_info(config.TASK_CATEGORY, errors),
     ]
+
+
+def _handle_prediction_error(exc: Exception) -> None:
+    """Convert prediction exceptions to informative HTTP errors."""
+    if isinstance(exc, ModelLoadError):
+        logger.error("Model not loaded: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Model not loaded",
+                "message": str(exc),
+                "task": exc.task,
+                "hint": "Verify model artifacts in models/ match the TensorFlow/Keras version used for inference.",
+            },
+        ) from exc
+    if isinstance(exc, FileNotFoundError):
+        logger.error("File not found: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Model artifacts missing",
+                "message": str(exc),
+                "hint": "Export artifacts from Google Colab and extract them to models/.",
+            },
+        ) from exc
+    if isinstance(exc, ValueError):
+        logger.warning("Bad request: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    logger.exception("Unexpected prediction error")
+    raise HTTPException(
+        status_code=500,
+        detail={
+            "error": "Internal prediction error",
+            "message": str(exc),
+            "hint": "Check server logs for details.",
+        },
+    ) from exc
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -109,10 +174,8 @@ def predict_single(
     """Predict sentiment and category for a single review text."""
     try:
         result = get_predictor().predict_text(request.review_text)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        _handle_prediction_error(exc)
 
     save_prediction(db, result)
     return PredictResponse(**result)
@@ -126,10 +189,8 @@ def predict_batch(
     """Predict sentiment and category for a batch of review texts."""
     try:
         results = get_predictor().predict_batch(request.texts)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        _handle_prediction_error(exc)
 
     save_batch_predictions(db, results)
     return BatchPredictResponse(

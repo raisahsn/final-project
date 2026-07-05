@@ -176,6 +176,9 @@ with tabs[2]:
     try:
         health = requests.get(f"{API_URL}/health", timeout=5).json()
         if health.get("status") == "ok":
+            if not health.get("ready", False):
+                st.warning("Models are not fully loaded. Check error details below.")
+
             status_cols = st.columns(len(health["models"]))
             for idx, model in enumerate(health["models"]):
                 with status_cols[idx]:
@@ -184,6 +187,15 @@ with tabs[2]:
                         value="Ready" if model["loaded"] else "Not Loaded",
                         delta=f"{model['model_type']} | max_len={model['max_len']}",
                     )
+                    if model.get("error"):
+                        with st.expander("Error details"):
+                            st.code(model["error"])
+
+            errors = health.get("errors", {})
+            if errors:
+                st.markdown("**Load Errors**")
+                for task, message in errors.items():
+                    st.error(f"{task.upper()}: {message}")
         else:
             st.error("API is not responding correctly.")
     except requests.exceptions.ConnectionError:

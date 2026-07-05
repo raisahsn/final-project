@@ -62,13 +62,16 @@ class ModelInfo(BaseModel):
     classes: List[str]
     max_len: int
     loaded: bool
+    error: str = ""
 
     model_config = ConfigDict(protected_namespaces=())
 
 
 class HealthResponse(BaseModel):
     status: str
+    ready: bool
     models: List[ModelInfo]
+    errors: Dict[str, str]
 
 
 class PredictionsListResponse(BaseModel):

@@ -1,4 +1,4 @@
-# 🛒 Tokopedia Review Sentiment & Category Classification
+# Tokopedia Review Sentiment & Category Classification
 
 Deep Learning deployment pipeline untuk klasifikasi sentimen dan kategori review produk Tokopedia.
 
@@ -54,14 +54,12 @@ models/
 │   ├── model.keras
 │   ├── tokenizer.json
 │   ├── label_encoder.pkl
-│   ├── config.json
-│   └── metrics.json
+│   └── config.json
 └── category_model/
     ├── model.keras
 │   ├── tokenizer.json
 │   ├── label_encoder.pkl
-│   ├── config.json
-│   └── metrics.json
+│   └── config.json
 ```
 
 ### 2. Install Dependencies
@@ -192,6 +190,52 @@ export DATABASE_URL=postgresql://user:password@host:5432/dbname
 - **Category**: BiLSTM (4 kelas: `produk`, `produk_dan_pengiriman`, `pengiriman`, `umum`)
 
 Kedua model menggunakan preprocessing yang sama dengan notebook riset.
+
+## 🛟 Troubleshooting
+
+### API mengembalikan 500 atau 503 setelah menambahkan model
+
+Ini biasanya terjadi karena model yang disimpan di Colab tidak compatible dengan environment inference. API sekarang sudah memberikan error message yang detail di response dan log.
+
+Cek status model:
+```bash
+curl http://localhost:8000/health
+```
+
+Kalau muncul error seperti:
+- `Could not locate class 'Functional'`
+- `Could not deserialize class 'Functional'`
+- `tf_keras.src.engine.functional`
+
+Artinya model disimpan dengan `tf_keras` di Colab. Solusi:
+
+1. Pastikan `tf-keras==2.16.0` sudah terinstall:
+   ```bash
+   pip install tf-keras==2.16.0
+   ```
+
+2. Atau export ulang dari Colab dengan `colab/save_artifacts.py` yang sudah diupdate.
+
+### Model gagal load karena versi scikit-learn berbeda
+
+Kalau muncul warning/error saat load `label_encoder.pkl`, pastikan versi scikit-learn sama dengan Colab. Saat ini pinned di `requirements.txt`:
+- `scikit-learn==1.6.1`
+
+### File model tidak ditemukan
+
+Pastikan struktur folder benar:
+```bash
+ls models/sentiment_model
+ls models/category_model
+```
+
+Harus ada `model.keras`, `tokenizer.json`, `label_encoder.pkl`, `config.json`.
+
+### Docker build failed karena memory penuh
+
+TensorFlow sangat besar. Build Docker lokal butuh RAM 6-8GB. Solusi:
+1. Naikin memory limit Docker Desktop ke 8GB
+2. Atau skip Docker local, langsung deploy ke Render
 
 ## 📝 Notes
 

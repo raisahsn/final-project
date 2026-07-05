@@ -8,8 +8,10 @@ plotly==5.22.0
 
 # ML / DL
 tensorflow==2.16.1
+tf-keras==2.16.0
+protobuf==4.25.3
 transformers==4.41.2
-scikit-learn==1.5.0
+scikit-learn==1.6.1
 imbalanced-learn==0.12.3
 keras-tuner==1.4.7
 Sastrawi==1.0.1
