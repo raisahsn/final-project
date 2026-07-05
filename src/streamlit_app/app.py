@@ -72,6 +72,14 @@ with tabs[0]:
 
             st.success("Analysis complete")
 
+            flags = result.get("flags", {})
+            if flags.get("offensive"):
+                st.warning(
+                    f"Offensive language detected: {', '.join(flags.get('offensive_words', []))}"
+                )
+            if flags.get("note"):
+                st.info(flags["note"])
+
             left, right = st.columns(2)
             with left:
                 with st.container(border=True):

@@ -18,11 +18,20 @@ class ProbabilityMap(BaseModel):
     confidence: float
 
 
+class Flags(BaseModel):
+    offensive: bool = False
+    offensive_words: List[str] = []
+    low_confidence: bool = False
+    rule_based_sentiment: bool = False
+    note: str = ""
+
+
 class PredictResponse(BaseModel):
     review_text: str
     cleaned_text: str
     sentiment: ProbabilityMap
     category: ProbabilityMap
+    flags: Flags
 
 
 class BatchPredictRequest(BaseModel):
@@ -37,6 +46,9 @@ class BatchItem(BaseModel):
     sentiment_confidence: float
     category_label: str
     category_confidence: float
+    offensive: bool = False
+    offensive_words: List[str] = []
+    low_confidence: bool = False
 
 
 class BatchPredictResponse(BaseModel):

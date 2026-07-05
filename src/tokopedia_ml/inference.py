@@ -8,17 +8,10 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from . import config
-
-try:
-    import tf_keras
-
-    KERAS_BACKEND = tf_keras
-except ImportError:
-    import tensorflow.keras as tf_keras
-
-    KERAS_BACKEND = tf_keras
 from .preprocessing import (
     clean_text,
+    detect_offensive,
+    find_offensive_words,
     load_label_encoder,
     load_tokenizer,
     texts_to_padded,
@@ -26,6 +19,18 @@ from .preprocessing import (
 )
 
 logger = logging.getLogger(__name__)
+
+SENTIMENT_CONFIDENCE_THRESHOLD = 0.6
+
+
+try:
+    import tf_keras as keras_backend
+except ImportError:
+    import tensorflow.keras as keras_backend
+
+    logger.warning(
+        "tf_keras not installed; falling back to tensorflow.keras for loading."
+    )
 
 
 class ModelLoadError(Exception):
@@ -85,11 +90,9 @@ def load_artifacts(task: str):
         raise ModelLoadError(task, f"Failed to read config.json: {exc}") from exc
 
     try:
-        model = KERAS_BACKEND.models.load_model(str(required_files["model"]))
+        model = keras_backend.models.load_model(str(required_files["model"]))
         logger.info("Loaded Keras model for task='%s'", task)
     except Exception as first_exc:
-        # The model may have been saved with the standalone keras package instead
-        # of tf_keras. Try the standard tensorflow.keras loader as a fallback.
         try:
             import tensorflow as tf
 
@@ -200,14 +203,28 @@ class Predictor:
         if not cleaned:
             raise ValueError("Text became empty after cleaning; cannot predict.")
 
-        sent = self._predict_one(
-            cleaned,
-            self.sent_model,
-            self.sent_tokenizer,
-            self.sent_le,
-            self.sent_cfg["max_len"],
-        )
-        cat = self._predict_one(
+        offensive = detect_offensive(validated)
+        offensive_words = find_offensive_words(validated) if offensive else []
+
+        if offensive:
+            logger.info(
+                "Offensive language detected in review; applying rule-based negative sentiment."
+            )
+            sentiment = {
+                "label": "negative",
+                "confidence": 1.0,
+                "probabilities": {"negative": 1.0, "neutral": 0.0, "positive": 0.0},
+            }
+        else:
+            sentiment = self._predict_one(
+                cleaned,
+                self.sent_model,
+                self.sent_tokenizer,
+                self.sent_le,
+                self.sent_cfg["max_len"],
+            )
+
+        category = self._predict_one(
             cleaned,
             self.cat_model,
             self.cat_tokenizer,
@@ -215,22 +232,38 @@ class Predictor:
             self.cat_cfg["max_len"],
         )
 
+        low_confidence = sentiment["confidence"] < SENTIMENT_CONFIDENCE_THRESHOLD
+        rule_based_sentiment = offensive
+
+        note = ""
+        if offensive:
+            note = "Sentiment determined by offensive-language filter."
+        elif low_confidence:
+            note = f"Low sentiment confidence ({sentiment['confidence']:.1%}); review manually if needed."
+
         return {
             "review_text": validated,
             "cleaned_text": cleaned,
             "sentiment": {
-                "label": sent["label"],
-                "confidence": round(sent["confidence"], 4),
+                "label": sentiment["label"],
+                "confidence": round(sentiment["confidence"], 4),
                 "probabilities": {
-                    k: round(v, 4) for k, v in sent["probabilities"].items()
+                    k: round(v, 4) for k, v in sentiment["probabilities"].items()
                 },
             },
             "category": {
-                "label": cat["label"],
-                "confidence": round(cat["confidence"], 4),
+                "label": category["label"],
+                "confidence": round(category["confidence"], 4),
                 "probabilities": {
-                    k: round(v, 4) for k, v in cat["probabilities"].items()
+                    k: round(v, 4) for k, v in category["probabilities"].items()
                 },
+            },
+            "flags": {
+                "offensive": offensive,
+                "offensive_words": offensive_words,
+                "low_confidence": low_confidence,
+                "rule_based_sentiment": rule_based_sentiment,
+                "note": note,
             },
         }
 
@@ -238,33 +271,63 @@ class Predictor:
         """Predict sentiment and category for a list of reviews."""
         self._ensure_ready()
         cleaned = []
+        offensive_flags = []
         for t in texts:
             validated = validate_input_text(t)
             ct = clean_text(validated)
-            cleaned.append((validated, ct))
+            offensive = detect_offensive(validated)
+            cleaned.append((validated, ct, offensive))
+            offensive_flags.append(offensive)
 
-        sent_probs = self._predict_batch(
-            [c for _, c in cleaned],
-            self.sent_model,
-            self.sent_tokenizer,
-            self.sent_cfg["max_len"],
-        )
+        # Only run model on non-offensive texts for sentiment
+        non_offensive_indices = [
+            i for i, (_, _, offensive) in enumerate(cleaned) if not offensive
+        ]
+        non_offensive_cleaned = [cleaned[i][1] for i in non_offensive_indices]
+
+        sent_probs_all = [None] * len(texts)
+        if non_offensive_cleaned:
+            sent_probs = self._predict_batch(
+                non_offensive_cleaned,
+                self.sent_model,
+                self.sent_tokenizer,
+                self.sent_cfg["max_len"],
+            )
+            for idx, prob in zip(non_offensive_indices, sent_probs):
+                sent_probs_all[idx] = prob
+
+        # Category model runs on all texts
         cat_probs = self._predict_batch(
-            [c for _, c in cleaned],
+            [c for _, c, _ in cleaned],
             self.cat_model,
             self.cat_tokenizer,
             self.cat_cfg["max_len"],
         )
 
         results = []
-        for (original, _), s_probs, c_probs in zip(cleaned, sent_probs, cat_probs):
+        for (original, _, offensive), s_probs, c_probs in zip(
+            cleaned, sent_probs_all, cat_probs
+        ):
+            if offensive:
+                sentiment_label = "negative"
+                sentiment_confidence = 1.0
+            else:
+                sentiment_label = self._top_label(s_probs, self.sent_le)
+                sentiment_confidence = round(float(max(s_probs)), 4)
+
             results.append(
                 {
                     "review_text": original,
-                    "sentiment_label": self._top_label(s_probs, self.sent_le),
-                    "sentiment_confidence": round(float(max(s_probs)), 4),
+                    "sentiment_label": sentiment_label,
+                    "sentiment_confidence": sentiment_confidence,
                     "category_label": self._top_label(c_probs, self.cat_le),
                     "category_confidence": round(float(max(c_probs)), 4),
+                    "offensive": offensive,
+                    "offensive_words": (
+                        find_offensive_words(original) if offensive else []
+                    ),
+                    "low_confidence": sentiment_confidence
+                    < SENTIMENT_CONFIDENCE_THRESHOLD,
                 }
             )
         return results

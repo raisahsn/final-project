@@ -18,9 +18,9 @@ from tokopedia_ml.inference import (
 )
 
 from .database import (
-    Prediction,
     get_db,
     init_db,
+    query_predictions,
     save_batch_predictions,
     save_prediction,
 )
@@ -28,6 +28,7 @@ from .schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
     BatchItem,
+    Flags,
     HealthResponse,
     ModelInfo,
     PredictRequest,
@@ -177,8 +178,16 @@ def predict_single(
     except Exception as exc:
         _handle_prediction_error(exc)
 
-    save_prediction(db, result)
-    return PredictResponse(**result)
+    saved = save_prediction(db, result)
+    if saved is None:
+        logger.warning("Prediction computed but not persisted due to database issue.")
+    return PredictResponse(
+        review_text=result["review_text"],
+        cleaned_text=result["cleaned_text"],
+        sentiment=result["sentiment"],
+        category=result["category"],
+        flags=Flags(**result["flags"]),
+    )
 
 
 @app.post("/predict/batch", response_model=BatchPredictResponse)
@@ -192,7 +201,9 @@ def predict_batch(
     except Exception as exc:
         _handle_prediction_error(exc)
 
-    save_batch_predictions(db, results)
+    saved_records = save_batch_predictions(db, results)
+    if not saved_records:
+        logger.warning("Batch predictions computed but not persisted due to database issue.")
     return BatchPredictResponse(
         count=len(results),
         results=[BatchItem(**r) for r in results],
@@ -206,15 +217,8 @@ def get_predictions(
     db: Session = Depends(get_db),
 ) -> PredictionsListResponse:
     """Retrieve stored predictions with pagination."""
-    total = db.query(Prediction).count()
     offset = (page - 1) * page_size
-    items = (
-        db.query(Prediction)
-        .order_by(Prediction.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-        .all()
-    )
+    total, items = query_predictions(db, skip=offset, limit=page_size)
     return PredictionsListResponse(
         total=total,
         page=page,

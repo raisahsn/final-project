@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import List, Union
 
 import joblib
-from tensorflow.keras.preprocessing.text import Tokenizer, tokenizer_from_json
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.preprocessing.text import Tokenizer, tokenizer_from_json
 
 try:
     from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
@@ -95,6 +95,58 @@ STOPWORDS = set(
     ]
 )
 
+OFFENSIVE_WORDS = set(
+    [
+        "anjing",
+        "anjir",
+        "babi",
+        "bangsat",
+        "bajingan",
+        "brengsek",
+        "budek",
+        "cacing",
+        "cacat",
+        "celeng",
+        "cibai",
+        "cundang",
+        "dajjal",
+        "dongok",
+        "gblk",
+        "goblok",
+        "goblog",
+        "iblis",
+        "idiot",
+        "jancuk",
+        "jancok",
+        "kampret",
+        "kontol",
+        "kntl",
+        "kunyuk",
+        "lonte",
+        "memek",
+        "mmk",
+        "ngentot",
+        "ngentod",
+        "ngewe",
+        "ntot",
+        "pantek",
+        "pecun",
+        "pejabat",
+        "peler",
+        "peli",
+        "penjahat",
+        "sampah",
+        "setan",
+        "sialan",
+        "sinting",
+        "sontoloyo",
+        "tai",
+        "taik",
+        "tolol",
+        "tod",
+    ]
+)
+
 
 def clean_text(text: str) -> str:
     """Clean and normalize Indonesian review text.
@@ -129,6 +181,18 @@ def validate_input_text(text: Union[str, None], max_chars: int = 2000) -> str:
     return text
 
 
+def detect_offensive(text: str) -> bool:
+    """Return True if the text contains offensive language."""
+    lowered = str(text).lower()
+    return any(word in lowered for word in OFFENSIVE_WORDS)
+
+
+def find_offensive_words(text: str) -> List[str]:
+    """Return a list of offensive words found in the text."""
+    lowered = str(text).lower()
+    return [word for word in OFFENSIVE_WORDS if word in lowered]
+
+
 def save_tokenizer(tokenizer: Tokenizer, path: Union[str, Path]) -> None:
     """Save a Keras Tokenizer to JSON."""
     path = Path(path)
@@ -141,7 +205,6 @@ def load_tokenizer(path: Union[str, Path]) -> Tokenizer:
     """Load a Keras Tokenizer from JSON."""
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    # data may be a JSON string or a dict depending on how it was saved.
     if isinstance(data, dict):
         data = json.dumps(data, ensure_ascii=False)
     return tokenizer_from_json(data)

@@ -29,7 +29,9 @@ DEFAULT_MODELS = {
 }
 
 # Database
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{PROJECT_ROOT / 'predictions.db'}")
+DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR / 'predictions.db'}")
 
 # API
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
