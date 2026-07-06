@@ -107,6 +107,38 @@ def _save_model_and_assets(
         print(f"Saved metrics: {out_dir / 'metrics.json'}")
 
 
+def _extract_metrics_from_results(results, task_marker, preferred=None):
+    """Extract accuracy/f1_macro from a results_all-style dict in the notebook."""
+    if not isinstance(results, dict):
+        return None
+    candidates = {
+        k: v
+        for k, v in results.items()
+        if isinstance(k, str) and task_marker.lower() in k.lower()
+    }
+    if not candidates:
+        return None
+
+    key = None
+    if preferred:
+        for k in candidates:
+            if preferred.lower() in k.lower():
+                key = k
+                break
+    if key is None:
+        key = list(candidates.keys())[-1]
+
+    vals = candidates[key]
+    if not isinstance(vals, dict):
+        return None
+
+    acc = vals.get("Accuracy") or vals.get("accuracy")
+    f1 = vals.get("F1-macro") or vals.get("f1-macro") or vals.get("f1_macro")
+    if acc is None or f1 is None:
+        return None
+    return {"accuracy": float(acc), "f1_macro": float(f1)}
+
+
 # ---------------------------------------------------------------------------
 # Sentiment artifacts
 # ---------------------------------------------------------------------------
@@ -128,6 +160,16 @@ if "X_te_s" in globals() and "y_te_s" in globals():
         }
     except Exception as exc:
         print(f"Could not compute sentiment metrics: {exc}")
+
+if sent_metrics is None and "results_all" in globals():
+    try:
+        sent_metrics = _extract_metrics_from_results(
+            globals()["results_all"], "Sentimen", preferred="Tuned"
+        )
+        if sent_metrics:
+            print(f"Extracted sentiment metrics from results_all: {sent_metrics}")
+    except Exception as exc:
+        print(f"Could not extract sentiment metrics from results_all: {exc}")
 
 _save_model_and_assets(
     _sentiment_model,
@@ -159,6 +201,16 @@ if "X_te_c" in globals() and "y_te_c" in globals():
         }
     except Exception as exc:
         print(f"Could not compute category metrics: {exc}")
+
+if cat_metrics is None and "results_all" in globals():
+    try:
+        cat_metrics = _extract_metrics_from_results(
+            globals()["results_all"], "Kategori", preferred="BiLSTM"
+        )
+        if cat_metrics:
+            print(f"Extracted category metrics from results_all: {cat_metrics}")
+    except Exception as exc:
+        print(f"Could not extract category metrics from results_all: {exc}")
 
 _save_model_and_assets(
     _category_model,
