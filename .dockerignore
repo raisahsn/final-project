@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Python virtual environments
+.venv
+venv
+env
+ENV
+
+# Python caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.mypy_cache
+htmlcov
+.coverage
+
+# Local data & databases (recreated at runtime)
+data
+*.db
+*.sqlite
+*.sqlite3
+
+# Development files
+notebooks
+tests
+.github
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+kt_logs
