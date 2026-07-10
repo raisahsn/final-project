@@ -1,0 +1,9 @@
+# Lightweight dependencies untuk Streamlit Community Cloud.
+# Streamlit Cloud akan pakai file ini karena berada di folder yang sama
+# dengan entrypoint (app.py). API (FastAPI) tetap pakai requirements.txt di root.
+streamlit==1.35.0
+pandas==2.2.2
+numpy==1.26.4
+plotly==5.22.0
+requests==2.32.3
+openpyxl==3.1.3

@@ -9,7 +9,24 @@ import plotly.express as px
 import requests
 import streamlit as st
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+def _get_api_url() -> str:
+    """Resolve API base URL.
+
+    Priority:
+      1. Streamlit secrets (Community Cloud): st.secrets["API_URL"]
+      2. Environment variable (Docker / Railway / lokal): API_URL
+      3. Default lokal: http://localhost:8000
+    """
+    try:
+        if "API_URL" in st.secrets:
+            return str(st.secrets["API_URL"]).rstrip("/")
+    except Exception:
+        # st.secrets tidak tersedia (misal jalan di luar Streamlit runtime)
+        pass
+    return os.getenv("API_URL", "http://localhost:8000").rstrip("/")
+
+
+API_URL = _get_api_url()
 
 st.set_page_config(
     page_title="Tokopedia Review Predictor",

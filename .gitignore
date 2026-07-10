@@ -50,3 +50,7 @@ htmlcov/
 
 # Environment
 .env
+
+# Streamlit secrets (jangan commit)
+.streamlit/secrets.toml
+secrets.toml

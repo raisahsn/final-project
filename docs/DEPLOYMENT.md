@@ -529,6 +529,18 @@ PY
 
 Lalu set variabel `MODELS_URL` di service `api`.
 
+### 10.3 Streamlit Community Cloud (khusus UI)
+
+Kalau kamu mau deploy **UI saja** ke **Streamlit Community Cloud** (gratis), sementara
+API tetap di Railway/Render, ikuti panduan khusus:
+
+→ [`docs/STREAMLIT_CLOUD.md`](./STREAMLIT_CLOUD.md)
+
+Ringkasnya:
+- Main file path: `src/streamlit_app/app.py`.
+- Streamlit Cloud otomatis pakai `src/streamlit_app/requirements.txt` (ringan, tanpa TensorFlow).
+- Set `API_URL` lewat **Settings → Secrets** di dashboard Streamlit Cloud.
+
 ---
 
 ## 11. Validasi & pengujian
