@@ -81,6 +81,10 @@ git add models && git commit -m "chore: update model" && git push
 
 Detail setiap langkah ada di bagian berikut.
 
+> 💸 **Mau 100% gratis & paling cepat (tanpa kartu kredit)?**
+> Pakai **Render (API) + Streamlit Cloud (UI) + model di-commit ke Git**.
+> Lihat panduan ringkas: [`docs/FREE_DEPLOY.md`](./FREE_DEPLOY.md)
+
 ---
 
 ## 3. Arsitektur aplikasi
@@ -515,19 +519,51 @@ kedua di file yang sama:
 
 ### 10.2 Artefak di object storage (kalau model besar)
 
-Kalau `models/` terlalu besar untuk Git, simpan di S3/GCS dan download saat container
-start. Contoh start command:
+Kalau `models/` terlalu besar untuk Git (misalnya >100 MB), **jangan** commit ke repo.
+Simpan zip artefak di object storage (S3 / GCS / Cloudflare R2 / Hugging Face Hub), lalu
+download otomatis saat container start.
 
-```bash
-python - <<'PY'
-import os, urllib.request, zipfile
-url = os.environ["MODELS_URL"]
-urllib.request.urlretrieve(url, "/tmp/models.zip")
-zipfile.ZipFile("/tmp/models.zip").extractall("/app/models")
-PY
-```
+Project ini sudah menyiapkan script `scripts/download_models.py` yang dipanggil otomatis
+oleh Dockerfile sebelum API jalan. Script ini:
+- tidak melakukan apa-apa kalau `MODELS_URL` tidak di-set,
+- skip download kalau model sudah ada,
+- download + ekstrak zip ke `models/`.
 
-Lalu set variabel `MODELS_URL` di service `api`.
+**Langkah:**
+
+1. Buat zip dengan struktur root-level `sentiment_model/` dan `category_model/`:
+
+   ```bash
+   cd tokopedia_artifacts
+   zip -r ../models-deploy.zip sentiment_model category_model
+   cd ..
+   ```
+
+2. Upload `models-deploy.zip` ke storage pilihan kamu, lalu ambil **public/direct URL**:
+   - **Cloudflare R2 / S3 / GCS**: buat bucket, upload zip, buat public atau presigned URL.
+   - **Hugging Face Hub**: buat repo model, upload zip, pakai URL `resolve/main/models-deploy.zip`.
+
+3. Di service `api` (Railway/Render/dll), set environment variable:
+
+   | Key         | Value                                  |
+   |-------------|----------------------------------------|
+   | `MODELS_URL`| `https://.../models-deploy.zip`        |
+
+4. Deploy. Saat container start, log akan menunjukkan:
+
+   ```
+   [download_models] Downloading models from https://...
+   [download_models] Extracting zip ...
+   [download_models] Models ready ✅
+   ```
+
+> Tips: kalau model sangat besar (download lama), naikkan `start-period` health check
+> di platform, atau download model secara lazy saat request pertama.
+
+**Alternatif lain untuk model besar:**
+- **Railway/Render Volume**: pasang persistent disk, upload model sekali, persist antar deploy.
+- **Git LFS**: bisa, tapi ada biaya & limit bandwidth — tidak disarankan untuk model >1 GB.
+- **Quantization / pruning**: kecilkan ukuran model (TextCNN default sudah kecil, jadi biasanya tidak perlu).
 
 ### 10.3 Streamlit Community Cloud (khusus UI)
 

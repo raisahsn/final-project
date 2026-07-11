@@ -1,0 +1,1 @@
+{"task": "sentiment", "model_type": "bilstm_tuned", "classes": ["negative", "neutral", "positive"], "max_len": 100, "max_words": 20000, "embed_dim": 128}

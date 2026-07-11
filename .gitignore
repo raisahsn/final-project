@@ -22,11 +22,14 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Model artifacts (large files)
-models/sentiment_model/*
-!models/sentiment_model/.gitkeep
-models/category_model/*
-!models/category_model/.gitkeep
+# Model artifacts
+# Model TextCNN kecil (beberapa MB) sehingga AMAN di-commit untuk deploy gratis
+# (Render/Railway). Kalau nanti model jadi besar (>100 MB), aktifkan lagi baris di bawah
+# dan pakai MODELS_URL (lihat docs/DEPLOYMENT.md bagian 10.2).
+# models/sentiment_model/*
+# !models/sentiment_model/.gitkeep
+# models/category_model/*
+# !models/category_model/.gitkeep
 
 # Database
 *.db
@@ -54,3 +57,10 @@ htmlcov/
 # Streamlit secrets (jangan commit)
 .streamlit/secrets.toml
 secrets.toml
+
+# Dataset mentah (dipakai lokal/Colab, tidak perlu di-deploy; ukuran besar)
+tokopedia_product_reviews_2025.csv
+*.csv
+
+# Arsip/artefak scratch di dalam models/ (model asli tetap di-commit)
+models/Archive.zip

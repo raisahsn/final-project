@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=src uvicorn api.main:app --host 0.0.0.0 --port 8000
+    startCommand: PYTHONPATH=src uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONPATH
         value: src

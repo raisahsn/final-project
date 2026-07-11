@@ -1,0 +1,1 @@
+{"task": "category", "model_type": "bilstm", "classes": ["pengiriman", "produk", "produk_dan_pengiriman", "umum"], "max_len": 100, "max_words": 20000, "embed_dim": 128}
