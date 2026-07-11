@@ -9,6 +9,14 @@ import plotly.express as px
 import requests
 import streamlit as st
 
+# set_page_config HARUS jadi perintah Streamlit pertama (sebelum st.secrets / yang lain).
+st.set_page_config(
+    page_title="Tokopedia Review Predictor",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+
 def _get_api_url() -> str:
     """Resolve API base URL.
 
@@ -27,12 +35,6 @@ def _get_api_url() -> str:
 
 
 API_URL = _get_api_url()
-
-st.set_page_config(
-    page_title="Tokopedia Review Predictor",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
 
 st.title("Tokopedia Review Predictor")
 st.caption("Deep Learning classification for product review sentiment and category.")
